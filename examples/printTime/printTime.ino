@@ -51,8 +51,8 @@ void setup()
 void loop() 
 {
   rtc.update(); // To run the clock properly, call this update function inside loop. Mandatory.
-  //rtc.print();  // Print the date & time in serial monitor. Builtin function of softRTC library
-  extra_info(); // uncomment this to show similar result with individual components.
+  rtc.print();  // Print the date & time in serial monitor. Builtin function of softRTC library
+  //extra_info(); // uncomment this to show similar result with individual components.
   delay(1000);  // Wait for a second.
 }
 
