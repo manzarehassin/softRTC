@@ -39,18 +39,15 @@ void setup()
   Serial.begin(9600); // Serial port initialized.
 
   /* Set the time: Day, Month, Year, Hour, Minute, Second,AM/PM, Hour Mode
-  rtc.write(31, 12, 2024, 13, 10, 30,0,MODE_24H);  // 24hrs, 31 Dec, 2024 13:10:30
-  rtc.write(31, 12, 2024, 11, 10, 30,AM,MODE_12H); // 12hrs, 31 Dec, 2024 11:10:30 AM
-  rtc.write(31, 12, 2024, 11, 10, 30,PM,MODE_12H); // 12hrs, 31 Dec, 2024 11:10:30 PM
+  rtc.write(31, 12, 2025, 13, 10, 30, 0, MODE_24H);  // 24hrs, 31 Dec, 2025 13:10:30
+  rtc.write(31, 12, 2025, 11, 10, 30, AM, MODE_12H); // 12hrs, 31 Dec, 2025 11:10:30 AM
+  rtc.write(31, 12, 2025, 11, 10, 30, PM, MODE_12H); // 12hrs, 31 Dec, 2025 11:10:30 PM
   */
-
-  rtc.write(31, 12, 2024, 12, 59, 00,PM,MODE_12H); // 12hrs, 31 Dec, 2024 12:59:00 PM
-  rtc.begin(); // Start the RTC
+  rtc.write(31, 12, 2025, 12, 59, 00, PM, MODE_12H); // 12hrs, 31 Dec, 2025 12:59:00 PM
 }
 
 void loop() 
 {
-  rtc.update(); // To run the clock properly, call this update function inside loop. Mandatory.
   rtc.print();  // Print the date & time in serial monitor. Builtin function of softRTC library
   //extra_info(); // uncomment this to show similar result with individual components.
   delay(1000);  // Wait for a second.
@@ -59,20 +56,21 @@ void loop()
 
 void extra_info()
 {
-  uint8_t day, month, hour, minute, second, tmp1;
+  uint8_t day, month, hour, minute, second, week;
+  bool isPM, is12H;
   uint16_t year;
-  bool tmp;
-
-  rtc.read(day,month,year,hour,minute,second,tmp,tmp,tmp1); // reading rtc: day,month,year,hour,minute,second,ampm,12h mode,week
-  String ampm = rtc.ampm(); // am or pm
-  String week = rtc.week(); // weekdays name
-
-  Serial.print(day); Serial.print("-");
-  Serial.print(month); Serial.print("-");
-  Serial.print(year); Serial.print(" ");
-  Serial.print(hour); Serial.print(":");
-  Serial.print(rtc.leadingZero(minute)); Serial.print(":");
-  Serial.print(rtc.leadingZero(second)); Serial.print(" ");
-  Serial.print(ampm); Serial.print(" ");
-  Serial.println(week);
+  // reading rtc: day, month, year, hour, minute, second, ampm, 12h mode, week
+  rtc.read(day, month, year, hour, minute, second, isPM, is12H, week);
+  
+  Serial.print(day);    Serial.print("-");
+  Serial.print(month);  Serial.print("-");
+  Serial.print(year);   Serial.print(" ");
+  Serial.print(hour);   Serial.print(":");
+  Serial.print(minute); Serial.print(":");
+  Serial.print(second); Serial.print(" ");
+  if(isPM) 
+    Serial.print("PM"); 
+  else 
+    Serial.print("AM"); 
+  Serial.println();
 }
