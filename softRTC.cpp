@@ -29,218 +29,177 @@ Published at 13 March, 2025 @ 5:22 PM (UTC+6)
 */
 
 #include "softRTC.h"
+#include <avr/pgmspace.h>
+#include <Arduino.h>
+
+// Error message macros
+#define ERR_NOT_SYNC() Serial.println(F("Error: Not synced yet."))
+#define ERR_INVALID_DATE() Serial.println(F("Error: Invalid date & time."))
 
 uint8_t softRTC::getWeekdays(uint8_t day, uint8_t month, uint16_t year) 
 {
   const int y0 = year - (month < 3);
-  const int x = y0 + y0/4 - y0/100 + y0/400;
-  const int m0 = month + 12 * (month < 3) - 2;
+  const int x  = y0 + y0/4 - y0/100 + y0/400;
+  const int m0 = month + 12*(month < 3) - 2;
   return (day + x + m0*31/12) % 7 + 1;
 }
 
 void softRTC::Convert_To_12h(uint8_t &hour, bool &isPM) 
 {
   isPM = (hour >= 12);
-  if (hour == 0) { hour = 12; }
-  else if (hour > 12) { hour -= 12; } 
+  if(hour==0) hour=12; else if(hour>12) hour-=12;
 }
 
-void softRTC::Convert_To_24h(uint8_t &hour, bool isPM)
+void softRTC::Convert_To_24h(uint8_t &hour, bool isPM) 
 {
-  if (isPM && hour < 12) { hour += 12;} 
-  else if (!isPM && hour == 12) { hour = 0;}
+  if(isPM && hour<12) hour+=12; else if(!isPM && hour==12) hour=0;
 }
 
 void softRTC::setCenturybit(uint16_t year) 
 {
-  startclk.century = (year >= 2100);
+  startclk.century = (year>=2100);
 }
 
-void softRTC::manageYear(bool select, uint16_t& Full, uint8_t& Half, bool century)
+void softRTC::manageYear(bool select, uint16_t &Full, uint8_t &Half, bool century) 
 {
-  if (select) { Full = (20 + century) * 100 + Half; } // rtc_full_year
-  else { Half = Full % 100; } // rtc_short_year
+  if(select)
+    Full = (20+century)*100 + Half;
+  else
+    Half = Full % 100;
 }
 
 void softRTC::write(uint8_t day, uint8_t month, uint16_t year, uint8_t hour, uint8_t minute, uint8_t second, bool isPM, bool is12H) 
 {
-  // Validate date/time values.
-  // Note: day and month are checked for zero as 0 is invalid.
-  // For 12-hour mode (MODE_12H), valid hours are 1–12.
-  // For 24-hour mode (MODE_24H), valid hours are 0–23.
-  if (day == 0 || day > 31 || month == 0 || month > 12 || minute > 59 || second > 59 || (is12H == MODE_12H ? (hour == 0 || hour > 12) : (hour > 23)))
+  if(day==0 || day>31 || month==0 || month>12 || minute>59 || second>59 || (is12H==MODE_12H ? (hour==0 || hour>12) : (hour>23))) 
   {
-    errorMsg(error_invalid_date);
-    //memset(&startclk,0,sizeof(startclk));
-    clkset.sync_=0;
-    startclk.month=startclk.day=1;
-    return;
+      ERR_INVALID_DATE();
+      clkset.sync_ = 0;
+      startclk.day = startclk.month = 1;
+      return;
   }
-
-  startclk.day = day;
+  startclk.day   = day;
   startclk.month = month;
   setCenturybit(year);
-
-  uint8_t buffer;
-  manageYear(rtc_short_year, year, buffer, startclk.century);
-  startclk.year = buffer;
+  uint8_t sy;
+  manageYear(rtc_short_year, year, sy, startclk.century);
+  startclk.year   = sy;
   startclk.minute = minute;
   startclk.second = second;
-  
-  // Convert hour to 24-hour format if necessary.
-  if (is12H)
-  {
+  if(is12H)
     Convert_To_24h(hour, isPM);
-  }
   startclk.hour = hour;
   clkset.millis = millis();
-  clkset.sync_ = 1;
-  clkset.is12H=is12H;
+  clkset.sync_  = 1;
+  clkset.is12H  = is12H;
 }
 
 void softRTC::read(uint8_t &day, uint8_t &month, uint16_t &year, uint8_t &hour, uint8_t &minute, uint8_t &second, bool &isPM, bool &is12H, uint8_t &week)
 {
-  if (!syncStatus_()) { day = month = hour = year = minute = second = isPM = is12H = week = 0; return; }
+  if(!syncStatus_())
+  {
+    day = month = hour = year = minute = second = isPM = is12H = week = 0; return;
+  }
   calcTime(year, month, day, hour, minute, second);
-  if (is12H) { Convert_To_12h(hour, isPM); }
+  if(clkset.is12H){ Convert_To_12h(hour, isPM); is12H = true; }
+  else is12H = false;
   week = getWeekdays(day, month, year);
 }
 
-String softRTC::Weekdays(uint8_t week)
+void softRTC::errorMsg(uint8_t val) 
 {
-    switch(week)
-    {
-      case 1: return F("Sun"); break;
-      case 2: return F("Mon"); break;
-      case 3: return F("Tue"); break;
-      case 4: return F("Wed"); break;
-      case 5: return F("Thu"); break;
-      case 6: return F("Fri"); break;
-      case 7: return F("Sat"); break;
-    };
-}
-
-String softRTC::leadingZero(uint8_t value)
-{
-  if((value<10) or (!value)) { return String(F("0")) + String(value); }
-  else { return String(value); }
+  if(val==error_not_sync)
+    ERR_NOT_SYNC();
+  else if(val==error_invalid_date)
+    ERR_INVALID_DATE();
 }
 
 bool softRTC::syncStatus_() 
 {
-  if (!clkset.sync_) { errorMsg(error_not_sync); return 0;}
-  return 1;
+  if(!clkset.sync_){ errorMsg(error_not_sync); return false; }
+  return true;
 }
 
-void softRTC::errorMsg(uint8_t val)
+void softRTC::calcTime(uint16_t &year, uint8_t &month, uint8_t &day,uint8_t &hour, uint8_t &minute, uint8_t &second)
 {
-  if(val == error_not_sync) { Serial.println(F("Error: Not synced yet."));}
-  else if(val == error_invalid_date) {Serial.println(F("Error: Invalid date & time."));}
-}
-
-void softRTC::calcTime(uint16_t &year, uint8_t &month, uint8_t &day, uint8_t &hour, uint8_t &minute, uint8_t &second) 
-{
-  const uint8_t PROGMEM daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-  const unsigned long elapsedMillis = millis() - clkset.millis; 
-  const unsigned long elapsedSeconds = elapsedMillis / 1000; // Convert to total elapsed seconds
-
-  // Calculate the seconds, minutes, and hours
-  second = (startclk.second + elapsedSeconds) % 60;
-  const unsigned long totalMinutes = startclk.minute + (startclk.second + elapsedSeconds) / 60;
-  minute = totalMinutes % 60;
-  const unsigned long totalHours = startclk.hour + totalMinutes / 60;
-  hour = totalHours % 24;
-
-  // Calculate the day, month, and year
-  unsigned long totalDays = totalHours / 24;
-
-  month= startclk.year; // temporary storage for short year
-  manageYear(rtc_full_year, year, month, startclk.century); // convert to full year
+  const uint8_t PROGMEM dpm[] = {31,28,31,30,31,30,31,31,30,31,30,31};
+  unsigned long secs = (millis()-clkset.millis)/1000UL;
+  unsigned long ts = startclk.second+secs;
+  second = ts % 60;
+  ts = startclk.minute + ts/60;
+  minute = ts % 60;
+  ts = startclk.hour + ts/60;
+  hour = ts % 24;
+  unsigned long daysElapsed = ts/24;
+  uint8_t sy = startclk.year;
+  manageYear(rtc_full_year, year, sy, startclk.century);
   month = startclk.month;
   day = startclk.day;
-
-  while (totalDays > 0) 
-  {
-    uint8_t daysInCurrentMonth = pgm_read_byte(&daysInMonth[month - 1]);
-
-    // Adjust for leap year if February
-    if (month == 2 && isLeapYear(year)) 
-    {
-      daysInCurrentMonth = 29;
-    }
-
-    if (totalDays < daysInCurrentMonth - day + 1) 
-    {
-      day += totalDays;
-      totalDays = 0;
-    } 
-    else 
-    {
-      totalDays -= (daysInCurrentMonth - day + 1);
-      day = 1;
-      month++;
-      
-      if (month > 12) 
-      {
-        month = 1;
-        year++;
-      }
-    }
+  while(daysElapsed){
+    uint8_t d = pgm_read_byte(&dpm[month-1]);
+    if(month==2 && isLeapYear(year)) d = 29;
+    uint8_t rem = d - day + 1;
+    if(daysElapsed < rem){ day += daysElapsed; break; }
+    daysElapsed -= rem;
+    day = 1;
+    if(++month > 12){ month = 1; year++; }
   }
-  // ✅ FIX: If the date lands on February 29 in a **non-leap year**, move to March 1
-  if (month == 2 && day == 29 && !isLeapYear(year)) { day = 1; month = 3; }
-  
+  if(month==2 && day==29 && !isLeapYear(year)){ day = 1; month = 3; }
 }
 
 bool softRTC::isLeapYear(uint16_t year) 
-{ 
-  return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+{
+  return ((year%4==0)&&(year%100!=0)) || (year%400==0);
 }
 
-void softRTC::print(uint16_t year, uint8_t month, uint8_t day,uint8_t hour, uint8_t minute, uint8_t second, bool is12H)
+// The optimized print() writes numbers and weekday names directly without using String.
+void softRTC::print(uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second, bool is12H) 
 {
-  Serial.print(day);
-  Serial.print(F("-"));
-  Serial.print(month);
-  Serial.print(F("-"));
-  Serial.print(year);
-  Serial.print(F(" "));
-
-  day = is12H; // temporary storage
-  //bool ampm;
-  if(day) // Checking for 12h
+  // Date
+  if(day<10) Serial.print('0');
+  Serial.print(day); Serial.print('-');
+  if(month<10) Serial.print('0');
+  Serial.print(month); Serial.print('-');
+  Serial.print(year); Serial.print(' ');
+  // Time
+  if(is12H) 
   {
-    Convert_To_12h(hour, is12H); //is12H holds the ampm value
-  }
-  Serial.print(leadingZero(hour));
-  Serial.print(F(":"));
-  Serial.print(leadingZero(minute));
-  Serial.print(F(":"));
-  Serial.print(leadingZero(second));
-  Serial.print(F(" "));
-  if(day) // check for 12h
+    bool ampm;
+    Convert_To_12h(hour, ampm);
+    if(hour<10) Serial.print('0');
+    Serial.print(hour); Serial.print(':');
+    if(minute<10) Serial.print('0');
+    Serial.print(minute); Serial.print(':');
+    if(second<10) Serial.print('0');
+    Serial.print(second); Serial.print(' ');
+    Serial.print(ampm ? "PM" : "AM");
+  } 
+  else 
   {
-    if(is12H) // checking for ampm
-    {
-      Serial.print(F("P"));
-    }
-    else
-    {
-      Serial.print(F("A"));
-    }
-    Serial.print(F("M"));
+    if(hour<10) Serial.print('0');
+    Serial.print(hour); Serial.print(':');
+    if(minute<10) Serial.print('0');
+    Serial.print(minute); Serial.print(':');
+    if(second<10) Serial.print('0');
+    Serial.print(second); Serial.print(" 24H");
   }
-  else
-  {
-    Serial.print(F("24H"));
+  Serial.print(' ');
+  uint8_t wd = getWeekdays(day, month, year);
+  switch(wd) {
+    case 1: Serial.print(F("Sun")); break;
+    case 2: Serial.print(F("Mon")); break;
+    case 3: Serial.print(F("Tue")); break;
+    case 4: Serial.print(F("Wed")); break;
+    case 5: Serial.print(F("Thu")); break;
+    case 6: Serial.print(F("Fri")); break;
+    case 7: Serial.print(F("Sat")); break;
   }
-  Serial.print(F(" "));
-  Serial.println(Weekdays(getWeekdays(day,month,year)));
+  Serial.println();
 }
 
-void softRTC::print()
+void softRTC::print() 
 {
-  uint8_t month, day, hour, minute, second; uint16_t year;
-  calcTime(year, month, day, hour, minute, second);
-  print(year, month, day, hour, minute, second,clkset.is12H);
+  uint8_t m, d, h, min, s;
+  uint16_t y;
+  calcTime(y, m, d, h, min, s);
+  print(y, m, d, h, min, s, clkset.is12H);
 }
