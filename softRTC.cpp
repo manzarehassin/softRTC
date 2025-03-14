@@ -1,40 +1,38 @@
 /*
-softRTC 
+  softRTC 
 
 
-MIT License
+  MIT License
 
-Copyright (c) 2024 Manzar-E-Hassin
+  Copyright (c) 2024 Manzar-E-Hassin
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
 
-Published at 13 March, 2025 @ 5:22 PM (UTC+6)
+  Published at 15 March, 2025 @ 12:55 PM (UTC+6)
 
 */
 
 #include "softRTC.h"
-#include <avr/pgmspace.h>
 #include <Arduino.h>
 
 // Error message macros
-#define ERR_NOT_SYNC() Serial.println(F("Error: Not synced yet."))
-#define ERR_INVALID_DATE() Serial.println(F("Error: Invalid date & time."))
+#define ERR_INVALID_DATE() Serial.println(F("Invalid date & time!"))
 
 uint8_t softRTC::getWeekdays(uint8_t day, uint8_t month, uint16_t year) 
 {
@@ -74,7 +72,6 @@ void softRTC::write(uint8_t day, uint8_t month, uint16_t year, uint8_t hour, uin
   {
       ERR_INVALID_DATE();
       clkset.sync_ = 0;
-      startclk.day = startclk.month = 1;
       return;
   }
   startclk.day   = day;
@@ -95,32 +92,16 @@ void softRTC::write(uint8_t day, uint8_t month, uint16_t year, uint8_t hour, uin
 
 void softRTC::read(uint8_t &day, uint8_t &month, uint16_t &year, uint8_t &hour, uint8_t &minute, uint8_t &second, bool &isPM, bool &is12H, uint8_t &week)
 {
-  if(!syncStatus_())
-  {
-    day = month = hour = year = minute = second = isPM = is12H = week = 0; return;
-  }
+  if(!clkset.sync_){return;}
   calcTime(year, month, day, hour, minute, second);
   if(clkset.is12H){ Convert_To_12h(hour, isPM); is12H = true; }
   else is12H = false;
   week = getWeekdays(day, month, year);
 }
 
-void softRTC::errorMsg(uint8_t val) 
-{
-  if(val==error_not_sync)
-    ERR_NOT_SYNC();
-  else if(val==error_invalid_date)
-    ERR_INVALID_DATE();
-}
-
-bool softRTC::syncStatus_() 
-{
-  if(!clkset.sync_){ errorMsg(error_not_sync); return false; }
-  return true;
-}
-
 void softRTC::calcTime(uint16_t &year, uint8_t &month, uint8_t &day,uint8_t &hour, uint8_t &minute, uint8_t &second)
 {
+  //if(!clkset.sync_){return;}
   const uint8_t PROGMEM dpm[] = {31,28,31,30,31,30,31,31,30,31,30,31};
   unsigned long secs = (millis()-clkset.millis)/1000UL;
   unsigned long ts = startclk.second+secs;
@@ -152,54 +133,56 @@ bool softRTC::isLeapYear(uint16_t year)
 }
 
 // The optimized print() writes numbers and weekday names directly without using String.
-void softRTC::print(uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second, bool is12H) 
+void softRTC::printsw(uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second, bool is12H) 
 {
+  bool ampm;
   // Date
-  if(day<10) Serial.print('0');
-  Serial.print(day); Serial.print('-');
-  if(month<10) Serial.print('0');
-  Serial.print(month); Serial.print('-');
-  Serial.print(year); Serial.print(' ');
+  Serial.print(day); Serial.print(F("-"));
+  Serial.print(month); Serial.print(F("-"));
+  Serial.print(year); Serial.print(F(" "));
   // Time
   if(is12H) 
   {
-    bool ampm;
     Convert_To_12h(hour, ampm);
-    if(hour<10) Serial.print('0');
-    Serial.print(hour); Serial.print(':');
-    if(minute<10) Serial.print('0');
-    Serial.print(minute); Serial.print(':');
-    if(second<10) Serial.print('0');
-    Serial.print(second); Serial.print(' ');
-    Serial.print(ampm ? "PM" : "AM");
-  } 
-  else 
-  {
-    if(hour<10) Serial.print('0');
-    Serial.print(hour); Serial.print(':');
-    if(minute<10) Serial.print('0');
-    Serial.print(minute); Serial.print(':');
-    if(second<10) Serial.print('0');
-    Serial.print(second); Serial.print(" 24H");
   }
-  Serial.print(' ');
-  uint8_t wd = getWeekdays(day, month, year);
-  switch(wd) {
-    case 1: Serial.print(F("Sun")); break;
-    case 2: Serial.print(F("Mon")); break;
-    case 3: Serial.print(F("Tue")); break;
-    case 4: Serial.print(F("Wed")); break;
-    case 5: Serial.print(F("Thu")); break;
-    case 6: Serial.print(F("Fri")); break;
-    case 7: Serial.print(F("Sat")); break;
-  }
-  Serial.println();
+  Serial.print(leadingZero(hour));
+  Serial.print(F(":"));
+  Serial.print(leadingZero(minute));
+  Serial.print(F(":"));
+  Serial.print(leadingZero(second));
+  Serial.print(F(" "));
+  if(is12H) { Serial.print(ampm ? F("PM") : F("AM")); }
+  else      { Serial.print(F("24H")); }
+  Serial.print(F(" "));
+  hour = getWeekdays(day, month, year); //week storage
+  Serial.println(weekdaysName(hour));
+}
+
+String softRTC::leadingZero(uint8_t value)
+{
+  if((value<10) or (!value)) { return String(F("0")) + String(value); }
+  return String(value);
+}
+
+String softRTC::weekdaysName(uint8_t val)
+{
+    switch(val)
+    {
+      case 1: return F("Sun");
+      case 2: return F("Mon");
+      case 3: return F("Tue");
+      case 4: return F("Wed");
+      case 5: return F("Thu");
+      case 6: return F("Fri");
+      case 7: return F("Sat");
+    };
 }
 
 void softRTC::print() 
 {
   uint8_t m, d, h, min, s;
   uint16_t y;
+  if(!clkset.sync_){ERR_INVALID_DATE();return;}
   calcTime(y, m, d, h, min, s);
-  print(y, m, d, h, min, s, clkset.is12H);
+  printsw(y, m, d, h, min, s, clkset.is12H);
 }
