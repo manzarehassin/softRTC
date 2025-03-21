@@ -31,13 +31,6 @@ A lightweight, software-based real-time clock (RTC) library for Arduino and comp
 
 ## Installation
 
-### Arduino Library Manager (If Submitted)
-
-1. Open the Arduino IDE.
-2. Go to **Sketch** > **Include Library** > **Manage Libraries...**
-3. Type `softRTC` in the search bar.
-4. Install once it appears in the results.
-
 ### Manual Installation
 
 1. Click the green “Code” button on this GitHub repository and select **Download ZIP**.
