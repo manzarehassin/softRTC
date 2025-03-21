@@ -89,7 +89,6 @@ A lightweight, software-based real-time clock (RTC) library for Arduino and comp
 ### Example Sketch
 
 ```cpp
-#include <Arduino.h>
 #include <softRTC.h>
 
 softRTC myRTC;
